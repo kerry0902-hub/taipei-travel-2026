@@ -22,26 +22,14 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { initializeApp } from 'firebase/app';
-import { 
-  getFirestore, 
-  collection, 
-  onSnapshot, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc,
-  query,
-  orderBy
-} from 'firebase/firestore';
 import { GoogleGenAI } from "@google/genai";
 import firebaseConfig from '../firebase-applet-config.json';
 import { ItineraryItem, ExpenseItem, TripInfo, FlightInfo } from './types';
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+// const app = initializeApp(firebaseConfig);
+// const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 // --- Components ---
 
@@ -242,8 +230,10 @@ const HomePage = ({
 
 const ItineraryPage = ({ 
   itinerary, 
+  setItinerary
 }: { 
   itinerary: ItineraryItem[], 
+  setItinerary: React.Dispatch<React.SetStateAction<ItineraryItem[]>>
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ItineraryItem | null>(null);
@@ -309,20 +299,20 @@ const ItineraryPage = ({
     e.preventDefault();
     try {
       if (editingItem) {
-        const itemRef = doc(db, 'itinerary', editingItem.id);
-        await updateDoc(itemRef, {
-          time: formData.time,
-          title: formData.title,
-          category: formData.category,
-          locationUrl: formData.locationUrl
-        });
+        setItinerary(prev => prev.map(item => 
+          item.id === editingItem.id 
+            ? { ...item, time: formData.time, title: formData.title, category: formData.category, locationUrl: formData.locationUrl }
+            : item
+        ));
       } else {
-        await addDoc(collection(db, 'itinerary'), {
+        const newItem: ItineraryItem = {
+          id: Date.now().toString(),
           time: formData.time,
           title: formData.title,
           category: formData.category,
           locationUrl: formData.locationUrl
-        });
+        };
+        setItinerary(prev => [...prev, newItem]);
       }
       setIsModalOpen(false);
     } catch (error) {
@@ -333,7 +323,7 @@ const ItineraryPage = ({
   const handleDelete = async () => {
     if (editingItem) {
       try {
-        await deleteDoc(doc(db, 'itinerary', editingItem.id));
+        setItinerary(prev => prev.filter(item => item.id !== editingItem.id));
         setIsModalOpen(false);
       } catch (error) {
         console.error("Error deleting itinerary:", error);
@@ -530,8 +520,10 @@ const ItineraryPage = ({
 
 const ExpensePage = ({ 
   expenses, 
+  setExpenses
 }: { 
   expenses: ExpenseItem[], 
+  setExpenses: React.Dispatch<React.SetStateAction<ExpenseItem[]>>
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ExpenseItem | null>(null);
@@ -579,18 +571,19 @@ const ExpensePage = ({
     
     try {
       if (editingExpense) {
-        const expRef = doc(db, 'expenses', editingExpense.id);
-        await updateDoc(expRef, {
-          item: formData.item,
-          twd: twdValue,
-          category: formData.category
-        });
+        setExpenses(prev => prev.map(exp => 
+          exp.id === editingExpense.id 
+            ? { ...exp, item: formData.item, twd: twdValue, category: formData.category }
+            : exp
+        ));
       } else {
-        await addDoc(collection(db, 'expenses'), {
+        const newExpense: ExpenseItem = {
+          id: Date.now().toString(),
           item: formData.item,
           twd: twdValue,
           category: formData.category
-        });
+        };
+        setExpenses(prev => [...prev, newExpense]);
       }
       setIsModalOpen(false);
     } catch (error) {
@@ -601,7 +594,7 @@ const ExpensePage = ({
   const handleDelete = async () => {
     if (editingExpense) {
       try {
-        await deleteDoc(doc(db, 'expenses', editingExpense.id));
+        setExpenses(prev => prev.filter(exp => exp.id !== editingExpense.id));
         setIsModalOpen(false);
       } catch (error) {
         console.error("Error deleting expense:", error);
@@ -1085,96 +1078,39 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Sync Itinerary
-    const itineraryQuery = query(collection(db, 'itinerary'), orderBy('time', 'asc'));
-    const unsubscribeItinerary = onSnapshot(itineraryQuery, (snapshot) => {
-      const items = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ItineraryItem[];
-      setItinerary(items);
-      
-      // Seed initial data if empty
-      if (items.length === 0 && isLoading) {
-        const initialItems = [
-          { time: '10:00', title: '抵達桃園機場', category: '交通' },
-          { time: '13:00', title: '西門町 阿宗麵線', category: '美食' },
-          { time: '15:30', title: '台北101 觀景台', category: '景點' },
-          { time: '19:00', title: '寧夏夜市', category: '美食' },
-        ];
-        initialItems.forEach(item => addDoc(collection(db, 'itinerary'), item));
-      }
-      setIsLoading(false);
-    }, (error) => {
-      console.error("Itinerary sync error:", error);
-      setIsLoading(false);
+    // Initialize with sample data
+    const initialItinerary = [
+      { id: '1', time: '10:00', title: '抵達桃園機場', category: '交通' },
+      { id: '2', time: '13:00', title: '西門町 阿宗麵線', category: '美食' },
+      { id: '3', time: '15:30', title: '台北101 觀景台', category: '景點' },
+      { id: '4', time: '19:00', title: '寧夏夜市', category: '美食' },
+    ];
+    setItinerary(initialItinerary);
+
+    const initialExpenses = [
+      { id: '1', item: '悠遊卡增值', twd: 500, category: '交通' },
+      { id: '2', item: '豪大大雞排', twd: 100, category: '美食' },
+      { id: '3', item: '鼎泰豐午餐', twd: 1200, category: '美食' },
+      { id: '4', item: '台北晶華酒店', twd: 4500, category: '住宿' },
+      { id: '5', item: '鳳梨酥伴手禮', twd: 800, category: '購物' },
+    ];
+    setExpenses(initialExpenses);
+
+    setTripInfo({
+      id: '1',
+      hotelName: '台北晶華酒店 (Regent Taipei)',
+      hotelAddress: '中山區中山北路二段39巷3號'
     });
 
-    // Sync Expenses
-    const unsubscribeExpenses = onSnapshot(collection(db, 'expenses'), (snapshot) => {
-      const items = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ExpenseItem[];
-      setExpenses(items);
-
-      // Seed initial expenses if empty
-      if (items.length === 0 && isLoading) {
-        const initialExpenses = [
-          { item: '悠遊卡增值', twd: 500, category: '交通' },
-          { item: '豪大大雞排', twd: 100, category: '美食' },
-          { item: '鼎泰豐午餐', twd: 1200, category: '美食' },
-          { item: '台北晶華酒店', twd: 4500, category: '住宿' },
-          { item: '鳳梨酥伴手禮', twd: 800, category: '購物' },
-        ];
-        initialExpenses.forEach(exp => addDoc(collection(db, 'expenses'), exp));
-      }
-    }, (error) => {
-      console.error("Expenses sync error:", error);
+    setFlightInfo({
+      id: '1',
+      flightNumber: 'BR892',
+      departureTime: '09:50',
+      arrivalTime: '11:45'
     });
 
-    // Sync Trip Info
-    const unsubscribeTripInfo = onSnapshot(collection(db, 'trip_info'), (snapshot) => {
-      if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        setTripInfo({
-          id: doc.id,
-          ...doc.data()
-        } as TripInfo);
-      } else if (isLoading) {
-        // Seed initial trip info if empty
-        addDoc(collection(db, 'trip_info'), {
-          hotelName: '台北晶華酒店 (Regent Taipei)',
-          hotelAddress: '中山區中山北路二段39巷3號'
-        });
-      }
-    });
-
-    // Sync Flight Info
-    const unsubscribeFlightInfo = onSnapshot(collection(db, 'flight_info'), (snapshot) => {
-      if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        setFlightInfo({
-          id: doc.id,
-          ...doc.data()
-        } as FlightInfo);
-      } else if (isLoading) {
-        // Seed initial flight info if empty
-        addDoc(collection(db, 'flight_info'), {
-          flightNumber: 'BR892',
-          departureTime: '09:50',
-          arrivalTime: '11:45'
-        });
-      }
-    });
-
-    return () => {
-      unsubscribeItinerary();
-      unsubscribeExpenses();
-      unsubscribeTripInfo();
-      unsubscribeFlightInfo();
-    };
-  }, [isLoading]);
+    setIsLoading(false);
+  }, []);
 
   const tabs = [
     { id: 'home', label: '首頁', icon: Home },
@@ -1197,12 +1133,14 @@ export default function App() {
       );
       case 'calendar': return (
         <ItineraryPage 
-          itinerary={itinerary} 
+          itinerary={itinerary}
+          setItinerary={setItinerary}
         />
       );
       case 'expense': return (
         <ExpensePage 
-          expenses={expenses} 
+          expenses={expenses}
+          setExpenses={setExpenses}
         />
       );
       case 'map': return <MapPage />;
